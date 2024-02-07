@@ -6,6 +6,7 @@ import {
 	redirect,
 } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
+import clsx from "clsx";
 import { Avatar } from "~/components/avatar";
 import { Content } from "~/components/content";
 import { LoginComment } from "~/components/login-comment";
@@ -15,6 +16,7 @@ import { PostItem, PostItemProps } from "~/components/post-item";
 import { PostMenu } from "~/components/post-menu";
 import { PostPeople } from "~/components/post-people";
 import { PostTime } from "~/components/post-time";
+import { Tags } from "~/components/tags";
 import { Votes } from "~/components/votes";
 import { checkAuth } from "~/lib/check-auth";
 import { createPost } from "~/lib/create-post";
@@ -51,6 +53,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 			const post = await prisma.post.findFirst({ where: { id: postId } });
 
 			await prisma.post.delete({ where: { id: postId, userId: userId } });
+			if (post?.parentId) {
+				await updatePostProps(post.parentId);
+			}
 
 			if (!post?.parentId) {
 				return redirect("/discussions");
@@ -63,19 +68,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 			const data = await request.json();
 
 			await createPost(data, userId);
-
-			const comments = await prisma.post.count({
-				where: { parentId: data.parentId },
-			});
-
-			const people = await prisma.user.count({
-				where: { Post: { every: { id: data.parentId } } },
-			});
-
-			await prisma.post.update({
-				where: { id: data.parentId },
-				data: { commentsCount: comments, people },
-			});
+			await updatePostProps(data.parentId);
 
 			return json({}, { status: 201 });
 		}
@@ -84,8 +77,33 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 	return json({}, { status: 405 });
 };
 
+async function updatePostProps(postId: number) {
+	const comments = await prisma.post.count({
+		where: { parentId: postId },
+	});
+
+	const people = await prisma.user.count({
+		where: {
+			Post: {
+				some: { OR: [{ id: postId }, { parentId: postId }], deleted: false },
+			},
+		},
+	});
+
+	await prisma.post.update({
+		where: { id: postId },
+		data: { commentsCount: comments, people },
+	});
+}
+
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
-	return [{ title: `Discussions | ${data?.schoolName} | compa` }];
+	const summary = data?.post.content.substring(0, 72);
+	const description = [`Post from @${data?.post.user.username}: ${summary}…`];
+
+	return [
+		{ title: `Discussions | ${data?.schoolName} | compa` },
+		{ name: "description", content: description },
+	];
 };
 
 export default function Discussion() {
@@ -118,6 +136,10 @@ export default function Discussion() {
 									<PostMenu post={post} />
 								</div>
 							</header>
+
+							<div className={clsx("mb-4", { hidden: !post.tags })}>
+								<Tags post={post} />
+							</div>
 
 							<div className="-mt-2">
 								<Content content={post.content} />

@@ -1,5 +1,9 @@
-import { Media } from "@prisma/client";
-import { ActionFunctionArgs, MetaFunction, json } from "@remix-run/node";
+import {
+	ActionFunctionArgs,
+	LoaderFunctionArgs,
+	MetaFunction,
+	json,
+} from "@remix-run/node";
 import { Link, useLoaderData } from "@remix-run/react";
 import React from "react";
 import { PostInput } from "~/components/post-input";
@@ -9,14 +13,23 @@ import { createPost } from "~/lib/create-post";
 import { useGlobalCtx } from "~/lib/global-ctx";
 import { prisma } from "~/lib/prisma.server";
 import { values } from "~/lib/values.server";
+import { withUserPrefs } from "~/lib/with-user-prefs";
 
-export const loader = async () => {
+export const loader = async ({ request }: LoaderFunctionArgs) => {
 	const posts = await prisma.post.findMany({
 		where: { parentId: null },
 		include: { user: true, media: true },
 		orderBy: { createdAt: "desc" },
 	});
-	return json({ school: values.meta(), posts });
+
+	return json(
+		{ school: values.meta(), posts },
+		{
+			headers: {
+				"Set-Cookie": await withUserPrefs(request, { lastBase: "discussions" }),
+			},
+		},
+	);
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -29,7 +42,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
-	return [{ title: `Discussions | ${data?.school.shortName} | compa` }];
+	return [
+		{ title: `Discussions | ${data?.school.shortName} | compa` },
+		{
+			name: "description",
+			content: `Find out about all the conversations going on in ${data?.school.shortName}. Share ideas and learn from each other.`,
+		},
+	];
 };
 
 export default function Discussions() {
@@ -42,8 +61,6 @@ export default function Discussions() {
 				<div className="col-span-1"> </div>
 
 				<div className="col-span-1 lg:col-span-2">
-					<h1 className="font-bold text-2xl">Discussions</h1>
-
 					<div className="mb-4">
 						{!user && (
 							<div className="p-2">
@@ -58,6 +75,8 @@ export default function Discussions() {
 						)}
 						<PostInput />
 					</div>
+
+					<hr className="mb-4 dark:border-t-neutral-800" />
 
 					{posts.map((post, i) => (
 						<React.Fragment key={post.id}>
