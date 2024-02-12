@@ -2,7 +2,7 @@ import "@unocss/reset/tailwind.css";
 import "./style.css";
 
 import { cssBundleHref } from "@remix-run/css-bundle";
-import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import {
 	Links,
 	LiveReload,
@@ -50,6 +50,7 @@ export default function App() {
 				/>
 				<link rel="manifest" href="/manifest.webmanifest" />
 				<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+				<link href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" rel="stylesheet" />
 				<Meta />
 				<Links />
 			</head>
